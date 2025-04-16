@@ -25,7 +25,7 @@
 **Actual app looks even better! 😃**
 
 <kbd>
-  <img src="https://github.com/HarshAndroid/we_chat/blob/master/screenshots/1.png" width=30% height=30%/>
+  <img src="https://github.com/samarthdadhaniya/Chat-Application-Flutter/tree/main/screenshots/1.png" width=30% height=30%/>
   <img src="https://github.com/HarshAndroid/we_chat/blob/master/screenshots/2.png" width=30% height=30%/>
   <img src="https://github.com/HarshAndroid/we_chat/blob/master/screenshots/3.png" width=30% height=30%/>
   <img src="https://github.com/HarshAndroid/we_chat/blob/master/screenshots/4.png" width=30% height=30%/>
