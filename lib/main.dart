@@ -1,31 +1,17 @@
-import 'dart:developer';
-
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_notification_channel/flutter_notification_channel.dart';
-import 'package:flutter_notification_channel/notification_importance.dart';
+import 'package:flutter_chat_app/screens/login_screen.dart';
+import 'package:flutter_chat_app/services/chat_service.dart';
+import 'package:provider/provider.dart';
 
-import 'firebase_options.dart';
-import 'screens/splash_screen.dart';
-
-//global object for accessing device screen size
-late Size mq;
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  //enter full-screen
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-
-  await _initializeFirebase();
-
-  //for setting orientation to portrait only
-  SystemChrome.setPreferredOrientations(
-          [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown])
-      .then((value) {
-    runApp(const MyApp());
-  });
+void main() {
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ChatService()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -34,32 +20,45 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-        title: 'We Chat',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-            useMaterial3: false,
-            appBarTheme: const AppBarTheme(
-              centerTitle: true,
-              elevation: 1,
-              iconTheme: IconThemeData(color: Colors.black),
-              titleTextStyle: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.normal,
-                  fontSize: 19),
-              backgroundColor: Colors.white,
-            )),
-        home: const SplashScreen());
+      title: 'Flutter Chat App',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.teal,
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          centerTitle: false,
+          elevation: 0,
+          backgroundColor: Colors.teal,
+          foregroundColor: Colors.white,
+          titleTextStyle: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.teal, width: 2),
+          ),
+        ),
+      ),
+      home: const LoginScreen(),
+    );
   }
-}
-
-Future<void> _initializeFirebase() async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  var result = await FlutterNotificationChannel().registerNotificationChannel(
-      description: 'For Showing Message Notification',
-      id: 'chats',
-      importance: NotificationImportance.IMPORTANCE_HIGH,
-      name: 'Chats');
-
-  log('\nNotification Channel Result: $result');
 }

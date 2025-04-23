@@ -1,22 +1,13 @@
-import 'dart:developer';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_chat_app/screens/login_screen.dart';
+import 'package:flutter_chat_app/services/chat_service.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
-import '../../api/apis.dart';
-import '../../helper/dialogs.dart';
-import '../../main.dart';
-import '../../models/chat_user.dart';
-import '../widgets/profile_image.dart';
-import 'auth/login_screen.dart';
-
-//profile screen -- to show signed in user info
 class ProfileScreen extends StatefulWidget {
-  final ChatUser user;
-
-  const ProfileScreen({super.key, required this.user});
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -24,258 +15,215 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  String? _image;
+  late TextEditingController _nameController;
+  String _avatarUrl = '';
+  bool _isLoading = false;
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      // for hiding keyboard
-      onTap: FocusScope.of(context).unfocus,
-      child: Scaffold(
-          //app bar
-          appBar: AppBar(title: const Text('Profile Screen')),
+  void initState() {
+    super.initState();
+    final chatService = Provider.of<ChatService>(context, listen: false);
+    final currentUser = chatService.currentUser;
+    
+    if (currentUser != null) {
+      _nameController = TextEditingController(text: currentUser.name);
+      _avatarUrl = currentUser.avatar;
+    } else {
+      _nameController = TextEditingController();
+    }
+  }
 
-          //floating button to log out
-          floatingActionButton: Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: FloatingActionButton.extended(
-                backgroundColor: Colors.redAccent,
-                onPressed: () async {
-                  //for showing progress dialog
-                  Dialogs.showLoading(context);
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
 
-                  await APIs.updateActiveStatus(false);
+  Future<void> _updateProfile() async {
+    if (!_formKey.currentState!.validate()) return;
 
-                  //sign out from app
-                  await APIs.auth.signOut().then((value) async {
-                    await GoogleSignIn().signOut().then((value) {
-                      //for hiding progress dialog
-                      Navigator.pop(context);
+    setState(() {
+      _isLoading = true;
+    });
 
-                      //for moving to home screen
-                      Navigator.pop(context);
+    try {
+      final chatService = Provider.of<ChatService>(context, listen: false);
+      await chatService.updateProfile(
+        _nameController.text.trim(),
+        _avatarUrl,
+      );
 
-                      // APIs.auth = FirebaseAuth.instance;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update profile: ${e.toString()}')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
-                      //replacing home screen with login screen
-                      Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const LoginScreen()));
-                    });
-                  });
-                },
-                icon: const Icon(Icons.logout),
-                label: const Text('Logout')),
-          ),
+  Future<void> _pickAvatar() async {
+    // In a real app, we would use ImagePicker to select an image
+    // and upload it to a storage service. For this demo, we'll
+    // just use a random avatar from a placeholder service.
+    
+    // Simulate picking an image
+    setState(() {
+      _isLoading = true;
+    });
+    
+    await Future.delayed(const Duration(seconds: 1));
+    
+    // Generate a random avatar
+    final randomNum = DateTime.now().millisecondsSinceEpoch % 70;
+    setState(() {
+      _avatarUrl = 'https://i.pravatar.cc/300?img=$randomNum';
+      _isLoading = false;
+    });
+  }
 
-          //body
-          body: Form(
-            key: _formKey,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: mq.width * .05),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // for adding some space
-                    SizedBox(width: mq.width, height: mq.height * .03),
-
-                    //user profile picture
-                    Stack(
-                      children: [
-                        //profile picture
-                        _image != null
-                            ?
-
-                            //local image
-                            ClipRRect(
-                                borderRadius: BorderRadius.all(
-                                    Radius.circular(mq.height * .1)),
-                                child: Image.file(File(_image!),
-                                    width: mq.height * .2,
-                                    height: mq.height * .2,
-                                    fit: BoxFit.cover))
-                            :
-
-                            //image from server
-                            ProfileImage(
-                                size: mq.height * .2,
-                                url: widget.user.image,
-                              ),
-
-                        //edit image button
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: MaterialButton(
-                            elevation: 1,
-                            onPressed: () {
-                              _showBottomSheet();
-                            },
-                            shape: const CircleBorder(),
-                            color: Colors.white,
-                            child: const Icon(Icons.edit, color: Colors.blue),
-                          ),
-                        )
-                      ],
-                    ),
-
-                    // for adding some space
-                    SizedBox(height: mq.height * .03),
-
-                    // user email label
-                    Text(widget.user.email,
-                        style: const TextStyle(
-                            color: Colors.black54, fontSize: 16)),
-
-                    // for adding some space
-                    SizedBox(height: mq.height * .05),
-
-                    // name input field
-                    TextFormField(
-                      initialValue: widget.user.name,
-                      onSaved: (val) => APIs.me.name = val ?? '',
-                      validator: (val) => val != null && val.isNotEmpty
-                          ? null
-                          : 'Required Field',
-                      decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.person, color: Colors.blue),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(12)),
-                          ),
-                          hintText: 'eg. Happy Singh',
-                          label: Text('Name')),
-                    ),
-
-                    // for adding some space
-                    SizedBox(height: mq.height * .02),
-
-                    // about input field
-                    TextFormField(
-                      initialValue: widget.user.about,
-                      onSaved: (val) => APIs.me.about = val ?? '',
-                      validator: (val) => val != null && val.isNotEmpty
-                          ? null
-                          : 'Required Field',
-                      decoration: const InputDecoration(
-                          prefixIcon:
-                              Icon(Icons.info_outline, color: Colors.blue),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(12)),
-                          ),
-                          hintText: 'eg. Feeling Happy',
-                          label: Text('About')),
-                    ),
-
-                    // for adding some space
-                    SizedBox(height: mq.height * .05),
-
-                    // update profile button
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                          shape: const StadiumBorder(),
-                          minimumSize: Size(mq.width * .5, mq.height * .06)),
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          _formKey.currentState!.save();
-                          APIs.updateUserInfo().then((value) {
-                            Dialogs.showSnackbar(
-                                context, 'Profile Updated Successfully!');
-                          });
-                        }
-                      },
-                      icon: const Icon(Icons.edit, size: 28),
-                      label:
-                          const Text('UPDATE', style: TextStyle(fontSize: 16)),
-                    )
-                  ],
-                ),
-              ),
-            ),
-          )),
+  Future<void> _logout() async {
+    final chatService = Provider.of<ChatService>(context, listen: false);
+    await chatService.logout();
+    
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
     );
   }
 
-  // bottom sheet for picking a profile picture for user
-  void _showBottomSheet() {
-    showModalBottomSheet(
-        context: context,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20), topRight: Radius.circular(20))),
-        builder: (_) {
-          return ListView(
-            shrinkWrap: true,
-            padding:
-                EdgeInsets.only(top: mq.height * .03, bottom: mq.height * .05),
+  @override
+  Widget build(BuildContext context) {
+    final chatService = Provider.of<ChatService>(context);
+    final currentUser = chatService.currentUser;
+    
+    if (currentUser == null) {
+      return const LoginScreen();
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              //pick profile picture label
-              const Text('Pick Profile Picture',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
-
-              //for adding some space
-              SizedBox(height: mq.height * .02),
-
-              //buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  //pick from gallery button
-                  ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          shape: const CircleBorder(),
-                          fixedSize: Size(mq.width * .3, mq.height * .15)),
-                      onPressed: () async {
-                        final ImagePicker picker = ImagePicker();
-
-                        // Pick an image
-                        final XFile? image = await picker.pickImage(
-                            source: ImageSource.gallery, imageQuality: 80);
-                        if (image != null) {
-                          log('Image Path: ${image.path}');
-                          setState(() {
-                            _image = image.path;
-                          });
-
-                          APIs.updateProfilePicture(File(_image!));
-
-                          // for hiding bottom sheet
-                          if (mounted) Navigator.pop(context);
-                        }
-                      },
-                      child: Image.asset('assets/images/add_image.png')),
-
-                  //take picture from camera button
-                  ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          shape: const CircleBorder(),
-                          fixedSize: Size(mq.width * .3, mq.height * .15)),
-                      onPressed: () async {
-                        final ImagePicker picker = ImagePicker();
-
-                        // Pick an image
-                        final XFile? image = await picker.pickImage(
-                            source: ImageSource.camera, imageQuality: 80);
-                        if (image != null) {
-                          log('Image Path: ${image.path}');
-                          setState(() {
-                            _image = image.path;
-                          });
-
-                          APIs.updateProfilePicture(File(_image!));
-
-                          // for hiding bottom sheet
-                          if (mounted) Navigator.pop(context);
-                        }
-                      },
-                      child: Image.asset('assets/images/camera.png')),
-                ],
-              )
+              const SizedBox(height: 20),
+              
+              // Avatar
+              Center(
+                child: Stack(
+                  children: [
+                    Hero(
+                      tag: 'profile-avatar',
+                      child: CircleAvatar(
+                        radius: 60,
+                        backgroundImage: CachedNetworkImageProvider(_avatarUrl),
+                      ),
+                    ).animate()
+                      .fadeIn()
+                      .scale(delay: 200.ms),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.teal,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 2,
+                          ),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                          ),
+                          onPressed: _isLoading ? null : _pickAvatar,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              // Email (non-editable)
+              TextFormField(
+                initialValue: currentUser.email,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                ),
+                readOnly: true,
+                enabled: false,
+              ).animate()
+                .fadeIn(delay: 300.ms)
+                .slideX(begin: -0.1, end: 0),
+              const SizedBox(height: 16),
+              
+              // Name
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name',
+                  prefixIcon: Icon(Icons.person),
+                ),
+                textCapitalization: TextCapitalization.words,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter your name';
+                  }
+                  if (value.trim().length < 3) {
+                    return 'Name must be at least 3 characters';
+                  }
+                  return null;
+                },
+              ).animate()
+                .fadeIn(delay: 400.ms)
+                .slideX(begin: -0.1, end: 0),
+              const SizedBox(height: 32),
+              
+              // Update button
+              ElevatedButton(
+                onPressed: _isLoading ? null : _updateProfile,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Update Profile'),
+              ).animate()
+                .fadeIn(delay: 500.ms)
+                .slideY(begin: 0.1, end: 0),
             ],
-          );
-        });
+          ),
+        ),
+      ),
+    );
   }
 }
